@@ -13,6 +13,10 @@ import {
   Alert,
 } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,13 +40,91 @@ export default function BookDetailsScreen({
   const book = route.params;
   const db = useSQLiteContext();
   const [currentPage, setCurrentPage] = useState(String(book.currentPage));
+  const [totalPages, setTotalPages] = useState(book.totalPages);
+  const [status, setStatus] = useState(book.status);
+  const [fileUri, setFileUri] = useState(book.fileUri);
+  const [fileType, setFileType] = useState(book.fileType);
+  const [readerPosition, setReaderPosition] = useState(book.readerPosition);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void db.getFirstAsync<{
+      currentPage: number;
+      totalPages: number;
+      status: string;
+      fileUri: string | null;
+      fileType: 'pdf' | 'epub' | null;
+      readerPosition: string | null;
+    }>('SELECT currentPage, totalPages, status, fileUri, fileType, readerPosition FROM books WHERE id = ?', book.id)
+      .then((latest) => {
+        if (!active || !latest) return;
+        setCurrentPage(String(latest.currentPage ?? 0));
+        setTotalPages(latest.totalPages);
+        setStatus(latest.status);
+        setFileUri(latest.fileUri);
+        setFileType(latest.fileType);
+        setReaderPosition(latest.readerPosition);
+      });
+    return () => { active = false; };
+  }, [book.id, db]));
+
+  const importBookFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'application/epub+zip'],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+
+    const selected = result.assets[0];
+    const extension = selected.name.split('.').pop()?.toLowerCase();
+    if (extension !== 'pdf' && extension !== 'epub') {
+      Alert.alert('Formato inválido', 'Escolha um arquivo PDF ou EPUB.');
+      return;
+    }
+    if (!FileSystem.documentDirectory) {
+      Alert.alert('Erro', 'Não foi possível acessar o armazenamento do app.');
+      return;
+    }
+
+    const destination = `${FileSystem.documentDirectory}book_${book.id}_${Date.now()}.${extension}`;
+    try {
+      await FileSystem.copyAsync({ from: selected.uri, to: destination });
+      await db.runAsync(
+        'UPDATE books SET fileUri = ?, fileType = ?, readerPosition = NULL WHERE id = ?',
+        destination, extension, book.id
+      );
+      if (book.fileUri?.startsWith(FileSystem.documentDirectory)) {
+        await FileSystem.deleteAsync(book.fileUri, { idempotent: true });
+      }
+      setFileUri(destination);
+      setFileType(extension);
+      setReaderPosition(null);
+      Alert.alert('Arquivo adicionado', `${selected.name} está disponível para leitura no Bentora.`);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Não foi possível copiar o arquivo para a biblioteca.');
+    }
+  };
+
+  const openReader = () => {
+    if (!fileUri || !fileType) return;
+    navigation.navigate('Reader', {
+      id: book.id,
+      title: book.title,
+      fileUri,
+      fileType,
+      currentPage: Number(currentPage) || 0,
+      totalPages,
+      readerPosition,
+    });
+  };
 
   const percentage =
-    book.totalPages > 0
+    totalPages > 0
       ? Math.min(
           100,
           Math.round(
-            (Number(currentPage) / book.totalPages) * 100
+            (Number(currentPage) / totalPages) * 100
           )
         )
       : 0;
@@ -86,8 +168,29 @@ export default function BookDetailsScreen({
         </Text>
 
         <Text style={styles.status}>
-          {book.status}
+          {status}
         </Text>
+
+        <View style={styles.progressCard}>
+          <Text style={styles.sectionTitle}>Leitura no aplicativo</Text>
+          <Text style={styles.pages}>
+            {fileType ? `Arquivo ${fileType.toUpperCase()} adicionado` : 'Adicione um PDF ou EPUB para ler aqui.'}
+          </Text>
+          {fileUri ? (
+            <>
+              <TouchableOpacity style={styles.updateButton} onPress={openReader}>
+                <Text style={styles.updateButtonText}>Continuar leitura</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.updateButton, { marginTop: 8, backgroundColor: COLORS.surfaceAlt }]} onPress={() => void importBookFile()}>
+                <Text style={[styles.updateButtonText, { color: COLORS.background }]}>Substituir arquivo</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={styles.updateButton} onPress={() => void importBookFile()}>
+              <Text style={styles.updateButtonText}>Importar PDF ou EPUB</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Progresso da leitura */}
         <View style={styles.progressCard}>
@@ -96,25 +199,26 @@ export default function BookDetailsScreen({
           </Text>
 
           <Text style={styles.pages}>
-            Página {currentPage} de {book.totalPages}
+            Página {currentPage} de {totalPages}
           </Text>
 
           <TextInput value={currentPage} onChangeText={setCurrentPage} keyboardType="numeric" placeholder="Página atual" style={styles.pageInput} />
           <TouchableOpacity style={styles.updateButton} onPress={async () => {
             const page = Number(currentPage);
-            if (!Number.isInteger(page) || page < 0 || page > book.totalPages) {
-              Alert.alert('Página inválida', `Informe uma página entre 0 e ${book.totalPages}.`);
+            if (!Number.isInteger(page) || page < 0 || page > totalPages) {
+              Alert.alert('Página inválida', `Informe uma página entre 0 e ${totalPages}.`);
               return;
             }
-            const status = page === book.totalPages ? 'Concluído' : page > 0 ? 'Lendo' : 'Quero ler';
+            const status = page === totalPages ? 'Concluído' : page > 0 ? 'Lendo' : 'Quero ler';
             const now = new Date().toISOString();
             await db.runAsync(
               `UPDATE books SET currentPage = ?, status = ?,
                startedAt = CASE WHEN ? > 0 AND startedAt IS NULL THEN ? ELSE startedAt END,
                completedAt = ? WHERE id = ?`,
-              page, status, page, now, page === book.totalPages ? now : null, book.id
+              page, status, page, now, page === totalPages ? now : null, book.id
             );
-            Alert.alert('Progresso salvo', `Página ${page} de ${book.totalPages}.`);
+            setStatus(status);
+            Alert.alert('Progresso salvo', `Página ${page} de ${totalPages}.`);
             navigation.goBack();
           }}><Text style={styles.updateButtonText}>Salvar progresso</Text></TouchableOpacity>
 

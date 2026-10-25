@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import LibraryScreen from '../screens/LibraryScreen';
 import BookDetailsScreen from '../screens/BookDetailsScreen';
+import ReaderScreen from '../screens/ReaderScreen';
 
 export type LibraryStackParamList = {
   LibraryList: undefined;
@@ -15,6 +16,18 @@ export type LibraryStackParamList = {
     currentPage: number;
     status: string;
     coverUri: string | null;
+    fileUri: string | null;
+    fileType: 'pdf' | 'epub' | null;
+    readerPosition: string | null;
+  };
+  Reader: {
+    id: number;
+    title: string;
+    fileUri: string;
+    fileType: 'pdf' | 'epub';
+    currentPage: number;
+    totalPages: number;
+    readerPosition: string | null;
   };
 };
 
@@ -36,6 +49,8 @@ export default function LibraryStack() {
         name="BookDetails"
         component={BookDetailsScreen}
       />
+
+      <Stack.Screen name="Reader" component={ReaderScreen} />
     </Stack.Navigator>
   );
 }

@@ -34,6 +34,16 @@ export async function initializeDatabase(
     'PRAGMA table_info(books)'
   );
 
+  if (!bookColumns.some((column) => column.name === 'fileUri')) {
+    await db.execAsync('ALTER TABLE books ADD COLUMN fileUri TEXT');
+  }
+  if (!bookColumns.some((column) => column.name === 'fileType')) {
+    await db.execAsync('ALTER TABLE books ADD COLUMN fileType TEXT');
+  }
+  if (!bookColumns.some((column) => column.name === 'readerPosition')) {
+    await db.execAsync('ALTER TABLE books ADD COLUMN readerPosition TEXT');
+  }
+
   if (!bookColumns.some((column) => column.name === 'startedAt')) {
     await db.execAsync('ALTER TABLE books ADD COLUMN startedAt TEXT');
   }

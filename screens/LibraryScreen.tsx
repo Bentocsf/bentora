@@ -40,6 +40,9 @@ type Book = {
   currentPage: number;
   status: string;
   coverUri: string | null;
+  fileUri: string | null;
+  fileType: 'pdf' | 'epub' | null;
+  readerPosition: string | null;
 };
 
 const statuses = ['Todos', 'Quero ler', 'Lendo', 'Concluído'] as const;
@@ -352,6 +355,13 @@ export default function LibraryScreen({ navigation }: Props) {
     Alert.alert('Excluir livro?', 'As reflexões associadas a este livro também serão excluídas.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: async () => {
+        const book = await db.getFirstAsync<{ fileUri: string | null }>(
+          'SELECT fileUri FROM books WHERE id = ?', id
+        );
+        if (book?.fileUri && FileSystem.documentDirectory
+          && book.fileUri.startsWith(FileSystem.documentDirectory)) {
+          await FileSystem.deleteAsync(book.fileUri, { idempotent: true });
+        }
         await db.runAsync('DELETE FROM reflections WHERE bookId = ?', id);
         await db.runAsync('DELETE FROM books WHERE id = ?', id);
         await loadBooks();
@@ -371,6 +381,9 @@ export default function LibraryScreen({ navigation }: Props) {
       currentPage: item.currentPage ?? 0,
       status: item.status,
       coverUri: item.coverUri,
+      fileUri: item.fileUri,
+      fileType: item.fileType,
+      readerPosition: item.readerPosition,
     });
   };
 

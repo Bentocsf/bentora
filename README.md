@@ -29,6 +29,10 @@ O acompanhamento não depende de o usuário ler dentro do Bentora. Também dever
 Leitor integrado
 A visão do projeto inclui importar e abrir arquivos PDF e EPUB no próprio aplicativo, retomar a leitura de onde parou e relacionar reflexões ao livro e, quando possível, ao capítulo ou trecho.
 
+O leitor inicial permite importar um arquivo PDF ou EPUB nos detalhes de um livro. O arquivo fica no armazenamento privado do aplicativo; PDF.js e EPUB.js renderizam o conteúdo localmente em uma WebView. A posição é salva automaticamente: página no PDF e trecho/posição no EPUB. Arquivos protegidos por senha ou incompatíveis podem não abrir. O leitor requer um arquivo compatível associado ao livro e não acessa catálogos externos.
+
+Os runtimes compilados do leitor ficam em `assets/reader/`. Após atualizar as dependências PDF.js ou EPUB.js, regenere-os com `npm run build:reader`. Os avisos de licença das bibliotecas usadas estão junto aos runtimes.
+
 A implementação e a escolha das bibliotecas serão avaliadas considerando compatibilidade com React Native, Expo e iOS, desempenho, manutenção, extração de texto e licenciamento.
 Diário de leitura
 O diário permitirá registrar pensamentos, opiniões, dúvidas, interpretações e ideias que surgirem durante a leitura.
