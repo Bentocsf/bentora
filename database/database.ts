@@ -1,0 +1,67 @@
+
+import * as SQLite from 'expo-sqlite';
+
+export async function initializeDatabase(
+  db: SQLite.SQLiteDatabase
+) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      author TEXT NOT NULL,
+      totalPages INTEGER NOT NULL,
+      currentPage INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'Quero ler',
+      coverUri TEXT
+    );
+  `);
+
+  const columns = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(books)'
+  );
+
+  const hasCoverUri = columns.some(
+    (column) => column.name === 'coverUri'
+  );
+
+  if (!hasCoverUri) {
+    await db.execAsync(`
+      ALTER TABLE books ADD COLUMN coverUri TEXT;
+    `);
+  }
+
+  const bookColumns = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(books)'
+  );
+
+  if (!bookColumns.some((column) => column.name === 'startedAt')) {
+    await db.execAsync('ALTER TABLE books ADD COLUMN startedAt TEXT');
+  }
+
+  if (!bookColumns.some((column) => column.name === 'completedAt')) {
+    await db.execAsync('ALTER TABLE books ADD COLUMN completedAt TEXT');
+  }
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS reflections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bookId INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      referenceType TEXT,
+      referenceValue TEXT,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (bookId) REFERENCES books(id) ON DELETE CASCADE
+    );
+  `);
+
+  const reflectionColumns = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(reflections)'
+  );
+  if (!reflectionColumns.some((column) => column.name === 'referenceType')) {
+    await db.execAsync('ALTER TABLE reflections ADD COLUMN referenceType TEXT');
+  }
+  if (!reflectionColumns.some((column) => column.name === 'referenceValue')) {
+    await db.execAsync('ALTER TABLE reflections ADD COLUMN referenceValue TEXT');
+  }
+}
