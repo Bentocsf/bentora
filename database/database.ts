@@ -44,6 +44,18 @@ export async function initializeDatabase(
     await db.execAsync('ALTER TABLE books ADD COLUMN readerPosition TEXT');
   }
 
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS readerBookmarks (
+      bookId INTEGER NOT NULL,
+      position TEXT NOT NULL,
+      currentPage INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (bookId, position),
+      FOREIGN KEY (bookId) REFERENCES books(id) ON DELETE CASCADE
+    );
+  `);
+
   if (!bookColumns.some((column) => column.name === 'startedAt')) {
     await db.execAsync('ALTER TABLE books ADD COLUMN startedAt TEXT');
   }

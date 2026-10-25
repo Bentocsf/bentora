@@ -362,6 +362,7 @@ export default function LibraryScreen({ navigation }: Props) {
           && book.fileUri.startsWith(FileSystem.documentDirectory)) {
           await FileSystem.deleteAsync(book.fileUri, { idempotent: true });
         }
+        await db.runAsync('DELETE FROM readerBookmarks WHERE bookId = ?', id);
         await db.runAsync('DELETE FROM reflections WHERE bookId = ?', id);
         await db.runAsync('DELETE FROM books WHERE id = ?', id);
         await loadBooks();
