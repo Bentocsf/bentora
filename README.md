@@ -42,16 +42,10 @@ Funcionalidades previstas:
 - Associar uma reflexão a um livro.
 - Informar a página ou capítulo relacionado.
 - Consultar reflexões de um livro e pesquisar registros anteriores.
-Reflexões por áudio
-O formulário do Diário permite gravar uma reflexão, transcrevê-la e revisar o texto antes de salvá-lo. A transcrição é inserida no campo de edição; nada é gravado no Diário até o usuário confirmar o salvamento.
+Perfil e atividade de leitura
+A aba Perfil mantém um nome local, resume páginas e tempo de leitura registrados, mostra conquistas básicas e reúne um feed privado de leituras e reflexões. Ao salvar o progresso de um livro, o leitor pode registrar páginas avançadas e minutos dedicados à sessão.
 
-O áudio é enviado ao backend local para transcrição pela API da OpenAI. O arquivo fica temporariamente no cache do dispositivo e em memória durante o processamento; o app remove o arquivo temporário após a resposta ou se a gravação for descartada. O áudio não é salvo no Diário.
-
-Para configurar a transcrição durante o desenvolvimento, copie `.env.example` para `.env` e `server/.env.example` para `server/.env`. Em `server/.env`, configure `OPENAI_API_KEY`. No `.env` da raiz, configure `EXPO_PUBLIC_TRANSCRIPTION_API_URL` com o IP local do computador e a porta `3001` (por exemplo, `http://192.168.1.25:3001`). Não compartilhe nem versione a chave da API.
-
-Com o computador e o iPhone na mesma rede Wi-Fi, inicie o backend com `npm run api:dev` e o Expo com `npx expo start --lan`. Esse backend está preparado para desenvolvimento local; antes de hospedá-lo publicamente, será necessário adicionar autenticação e limites de uso.
-
-O endpoint usa o modelo `gpt-transcribe` para gravações completas, conforme a [documentação oficial da OpenAI](https://developers.openai.com/api/docs/guides/speech-to-text).
+O perfil não representa uma conta: login e sincronização entre dispositivos dependem de um serviço de autenticação e backend, que ainda não fazem parte do aplicativo. Os dados atuais permanecem armazenados localmente.
 Perguntas inteligentes
 A IA deverá oferecer diferentes formas de explorar uma leitura:
 - Sobre capítulos lidos: perguntas para verificar compreensão, identificar argumentos e explorar relações e interpretações.
@@ -70,7 +64,7 @@ A primeira versão deverá priorizar uma experiência útil e possível de imple
 4. Associação de reflexões a livros e capítulos.
 5. Avaliação e implementação do leitor PDF/EPUB, conforme viabilidade técnica.
 6. Perguntas inteligentes baseadas nos insights, evoluindo para o conteúdo dos livros quando disponível.
-Áudio, transcrição, estatísticas avançadas e revisões automáticas poderão ficar para etapas posteriores. Se o leitor integrado atrasar a entrega, o acompanhamento manual deverá continuar funcionando.
+Áudio, login com sincronização, estatísticas avançadas e revisões automáticas poderão ficar para etapas posteriores. Se o leitor integrado atrasar a entrega, o acompanhamento manual deverá continuar funcionando.
 Tecnologias
 Tecnologias e integrações previstas para o projeto:
 - React Native — desenvolvimento mobile.
@@ -80,7 +74,6 @@ Tecnologias e integrações previstas para o projeto:
 - Expo SQLite — armazenamento local de livros, reflexões, progresso e histórico.
 - Google Books API ou Open Library API — pesquisa em catálogos externos.
 - Bibliotecas de PDF e EPUB — leitura de arquivos no aplicativo.
-- Serviço de transcrição — conversão de gravações em texto.
 - Serviço de inteligência artificial — organização de reflexões e geração de perguntas.
 - Backend seguro — intermediar chamadas a serviços externos quando necessário.
 A seleção das bibliotecas de PDF e EPUB deverá considerar compatibilidade com Expo e iOS, desempenho, manutenção e licenciamento. Chaves secretas de APIs não devem ser armazenadas diretamente no código do aplicativo.
@@ -116,7 +109,7 @@ O projeto será desenvolvido em etapas pequenas, com testes antes de avançar:
 4. Avaliação e implementação do leitor integrado.
 5. Diário de reflexões.
 6. Perguntas inteligentes.
-7. Áudio, transcrição e revisão de escrita.
+7. Perfil local, conquistas básicas e feed de atividade.
 8. Testes, aprimoramentos, documentação e preparação para o portfólio.
 Cada funcionalidade deverá ser validada antes de iniciar a próxima, preservando o que já funciona e registrando as decisões técnicas.
 Como executar

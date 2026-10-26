@@ -45,6 +45,7 @@ export default function BookDetailsScreen({
   const [fileUri, setFileUri] = useState(book.fileUri);
   const [fileType, setFileType] = useState(book.fileType);
   const [readerPosition, setReaderPosition] = useState(book.readerPosition);
+  const [sessionMinutes, setSessionMinutes] = useState('');
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -203,20 +204,37 @@ export default function BookDetailsScreen({
           </Text>
 
           <TextInput value={currentPage} onChangeText={setCurrentPage} keyboardType="numeric" placeholder="Página atual" style={styles.pageInput} />
+          <Text style={styles.pages}>Minutos lidos nesta sessão (opcional)</Text>
+          <TextInput value={sessionMinutes} onChangeText={setSessionMinutes} keyboardType="numeric" placeholder="Ex.: 25" style={styles.pageInput} />
           <TouchableOpacity style={styles.updateButton} onPress={async () => {
             const page = Number(currentPage);
             if (!Number.isInteger(page) || page < 0 || page > totalPages) {
               Alert.alert('Página inválida', `Informe uma página entre 0 e ${totalPages}.`);
               return;
             }
+            const minutes = sessionMinutes.trim() ? Number(sessionMinutes) : 0;
+            if (!Number.isInteger(minutes) || minutes < 0) {
+              Alert.alert('Tempo inválido', 'Informe os minutos como um número inteiro positivo.');
+              return;
+            }
+            const latestProgress = await db.getFirstAsync<{ currentPage: number }>('SELECT currentPage FROM books WHERE id = ?', book.id);
+            const previousPage = latestProgress?.currentPage ?? book.currentPage ?? 0;
             const status = page === totalPages ? 'Concluído' : page > 0 ? 'Lendo' : 'Quero ler';
             const now = new Date().toISOString();
-            await db.runAsync(
-              `UPDATE books SET currentPage = ?, status = ?,
-               startedAt = CASE WHEN ? > 0 AND startedAt IS NULL THEN ? ELSE startedAt END,
-               completedAt = ? WHERE id = ?`,
-              page, status, page, now, page === totalPages ? now : null, book.id
-            );
+            await db.withTransactionAsync(async () => {
+              await db.runAsync(
+                `UPDATE books SET currentPage = ?, status = ?,
+                 startedAt = CASE WHEN ? > 0 AND startedAt IS NULL THEN ? ELSE startedAt END,
+                 completedAt = ? WHERE id = ?`,
+                page, status, page, now, page === totalPages ? now : null, book.id
+              );
+              if (page > previousPage || minutes > 0) {
+                await db.runAsync(
+                  'INSERT INTO readingActivities (bookId, fromPage, toPage, pagesRead, durationMinutes) VALUES (?, ?, ?, ?, ?)',
+                  book.id, previousPage, page, Math.max(0, page - previousPage), minutes
+                );
+              }
+            });
             setStatus(status);
             Alert.alert('Progresso salvo', `Página ${page} de ${totalPages}.`);
             navigation.goBack();

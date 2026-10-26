@@ -29,13 +29,6 @@
         {
           "backgroundColor": "#173F35"
         }
-      ],
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "O Bentora usa o microfone para transcrever suas reflexões.",
-          "recordAudioAndroid": true
-        }
       ]
     ]
   }

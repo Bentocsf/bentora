@@ -99,4 +99,22 @@ export async function initializeDatabase(
   if (!reflectionColumns.some((column) => column.name === 'referenceValue')) {
     await db.execAsync('ALTER TABLE reflections ADD COLUMN referenceValue TEXT');
   }
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS readingActivities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bookId INTEGER NOT NULL,
+      fromPage INTEGER NOT NULL,
+      toPage INTEGER NOT NULL,
+      pagesRead INTEGER NOT NULL DEFAULT 0,
+      durationMinutes INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (bookId) REFERENCES books(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS localProfile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      displayName TEXT NOT NULL DEFAULT 'Leitor Bentora'
+    );
+    INSERT OR IGNORE INTO localProfile (id, displayName) VALUES (1, 'Leitor Bentora');
+  `);
 }
