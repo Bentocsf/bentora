@@ -43,9 +43,15 @@ Funcionalidades previstas:
 - Informar a página ou capítulo relacionado.
 - Consultar reflexões de um livro e pesquisar registros anteriores.
 Reflexões por áudio
-Em uma etapa posterior, o usuário poderá gravar uma ideia, transcrevê-la e receber uma versão organizada pela IA, com melhorias de clareza e estrutura sem alterar o significado original.
+O formulário do Diário permite gravar uma reflexão, transcrevê-la e revisar o texto antes de salvá-lo. A transcrição é inserida no campo de edição; nada é gravado no Diário até o usuário confirmar o salvamento.
 
-O fluxo previsto inclui revisão e aprovação do texto pelo usuário antes de salvá-lo. O áudio original não deverá ser mantido no diário: a gravação será temporária e deverá ser descartada após o processamento, observados os limites técnicos e as condições do serviço utilizado.
+O áudio é enviado ao backend local para transcrição pela API da OpenAI. O arquivo fica temporariamente no cache do dispositivo e em memória durante o processamento; o app remove o arquivo temporário após a resposta ou se a gravação for descartada. O áudio não é salvo no Diário.
+
+Para configurar a transcrição durante o desenvolvimento, copie `.env.example` para `.env` e `server/.env.example` para `server/.env`. Em `server/.env`, configure `OPENAI_API_KEY`. No `.env` da raiz, configure `EXPO_PUBLIC_TRANSCRIPTION_API_URL` com o IP local do computador e a porta `3001` (por exemplo, `http://192.168.1.25:3001`). Não compartilhe nem versione a chave da API.
+
+Com o computador e o iPhone na mesma rede Wi-Fi, inicie o backend com `npm run api:dev` e o Expo com `npx expo start --lan`. Esse backend está preparado para desenvolvimento local; antes de hospedá-lo publicamente, será necessário adicionar autenticação e limites de uso.
+
+O endpoint usa o modelo `gpt-transcribe` para gravações completas, conforme a [documentação oficial da OpenAI](https://developers.openai.com/api/docs/guides/speech-to-text).
 Perguntas inteligentes
 A IA deverá oferecer diferentes formas de explorar uma leitura:
 - Sobre capítulos lidos: perguntas para verificar compreensão, identificar argumentos e explorar relações e interpretações.
