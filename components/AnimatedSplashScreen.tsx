@@ -64,11 +64,12 @@ export default function AnimatedSplashScreen() {
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
+        // A largura cresce a partir da lombada para evitar a deformação em “L”.
         Animated.timing(opening, {
           toValue: 1,
           duration: ANIMATION.openingDuration,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.sequence([
           Animated.delay(620),
@@ -147,25 +148,21 @@ export default function AnimatedSplashScreen() {
     sloganTranslateY,
   ]);
 
-  const handleLayout = useCallback(() => {
-    startAnimation();
-  }, [startAnimation]);
-
-  const leftPageRotation = opening.interpolate({
+  const pageWidth = opening.interpolate({
     inputRange: [0, 1],
-    outputRange: ['-68deg', '-8deg'],
+    outputRange: [2, 58],
   });
-  const rightPageRotation = opening.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['68deg', '8deg'],
+  const pageLineOpacity = opening.interpolate({
+    inputRange: [0, 0.35, 1],
+    outputRange: [0, 0, 0.65],
   });
 
   return (
     <>
       <StatusBar style={visible ? 'light' : 'dark'} />
-      {visible && (
+      {visible ? (
         <Animated.View
-          onLayout={handleLayout}
+          onLayout={startAnimation}
           pointerEvents="auto"
           style={[styles.overlay, { opacity: overlayOpacity }]}
         >
@@ -182,39 +179,20 @@ export default function AnimatedSplashScreen() {
               <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
               <View style={styles.book}>
                 <Animated.View
-                  style={[
-                    styles.page,
-                    styles.leftPage,
-                    {
-                      transform: [
-                        { perspective: 420 },
-                        { rotateY: leftPageRotation },
-                      ],
-                    },
-                  ]}
+                  style={[styles.page, styles.leftPage, { width: pageWidth }]}
                 >
-                  <View style={styles.pageLine} />
-                  <View style={[styles.pageLine, styles.shortPageLine]} />
-                  <View style={[styles.pageLine, styles.shortPageLine]} />
+                  <Animated.View style={[styles.pageLine, { opacity: pageLineOpacity }]} />
+                  <Animated.View style={[styles.pageLine, styles.shortPageLine, { opacity: pageLineOpacity }]} />
+                  <Animated.View style={[styles.pageLine, styles.shortPageLine, { opacity: pageLineOpacity }]} />
                 </Animated.View>
                 <Animated.View
-                  style={[
-                    styles.page,
-                    styles.rightPage,
-                    {
-                      transform: [
-                        { perspective: 420 },
-                        { rotateY: rightPageRotation },
-                      ],
-                    },
-                  ]}
+                  style={[styles.page, styles.rightPage, { width: pageWidth }]}
                 >
-                  <View style={styles.pageLine} />
-                  <View style={[styles.pageLine, styles.shortPageLine]} />
-                  <View style={[styles.pageLine, styles.shortPageLine]} />
+                  <Animated.View style={[styles.pageLine, { opacity: pageLineOpacity }]} />
+                  <Animated.View style={[styles.pageLine, styles.shortPageLine, { opacity: pageLineOpacity }]} />
+                  <Animated.View style={[styles.pageLine, styles.shortPageLine, { opacity: pageLineOpacity }]} />
                 </Animated.View>
                 <View style={styles.spine} />
-                <View style={styles.bookBase} />
               </View>
             </Animated.View>
 
@@ -243,7 +221,7 @@ export default function AnimatedSplashScreen() {
             </Animated.Text>
           </View>
         </Animated.View>
-      )}
+      ) : null}
     </>
   );
 }
@@ -282,13 +260,15 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   book: {
+    position: 'relative',
     width: 116,
     height: 82,
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
   page: {
-    width: 58,
+    position: 'absolute',
+    bottom: 5,
     height: 72,
     backgroundColor: COLORS.backgroundLight,
     borderColor: COLORS.gold,
@@ -297,15 +277,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
     gap: 7,
-    backfaceVisibility: 'hidden',
+    overflow: 'hidden',
   },
   leftPage: {
+    right: '50%',
     borderLeftWidth: 2,
     borderTopLeftRadius: 7,
     borderBottomLeftRadius: 4,
     alignItems: 'flex-end',
   },
   rightPage: {
+    left: '50%',
     borderRightWidth: 2,
     borderTopRightRadius: 7,
     borderBottomRightRadius: 4,
@@ -315,7 +297,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 1,
     backgroundColor: COLORS.cream,
-    opacity: 0.65,
   },
   shortPageLine: {
     width: '72%',
@@ -328,15 +309,6 @@ const styles = StyleSheet.create({
     top: 5,
     backgroundColor: COLORS.gold,
     opacity: 0.9,
-  },
-  bookBase: {
-    position: 'absolute',
-    height: 2,
-    left: 0,
-    right: 0,
-    bottom: 4,
-    backgroundColor: COLORS.gold,
-    opacity: 0.75,
   },
   name: {
     marginTop: 8,

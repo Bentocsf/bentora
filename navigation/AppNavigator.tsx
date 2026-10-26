@@ -1,5 +1,6 @@
 
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import HomeScreen from '../screens/HomeScreen';
 import LibraryStack from './LibraryStack';
@@ -35,21 +36,41 @@ export default function AppNavigator() {
       <Tab.Screen
         name="Início"
         component={HomeScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
+        }}
       />
 
       <Tab.Screen
         name="Biblioteca"
         component={LibraryStack}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'library' : 'library-outline'} size={size} color={color} />
+          ),
+        }}
       />
 
       <Tab.Screen
         name="Diário"
         component={DiaryScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'reader' : 'reader-outline'} size={size} color={color} />
+          ),
+        }}
       />
 
       <Tab.Screen
         name="Perguntas"
         component={QuestionsScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'help-circle' : 'help-circle-outline'} size={size} color={color} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );

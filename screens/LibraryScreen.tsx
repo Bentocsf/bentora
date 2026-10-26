@@ -8,10 +8,16 @@ import {
   TextInput,
   TouchableOpacity,
   Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
+  FlatList,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Alert,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,6 +55,9 @@ const statuses = ['Todos', 'Quero ler', 'Lendo', 'Concluído'] as const;
 
 export default function LibraryScreen({ navigation }: Props) {
   const db = useSQLiteContext();
+  const { width } = useWindowDimensions();
+  const numColumns = width >= 700 ? 5 : width >= 500 ? 4 : 3;
+  const tileWidth = (width - 40 - 12 * (numColumns - 1)) / numColumns;
 
   const [books, setBooks] = useState<Book[]>([]);
 
@@ -58,8 +67,9 @@ export default function LibraryScreen({ navigation }: Props) {
 
   const [coverUri, setCoverUri] = useState<string | null>(null);
 
-  const [currentPages, setCurrentPages] = useState<Record<number, string>>({});
   const [selectedStatus, setSelectedStatus] = useState<string>('Todos');
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [addMode, setAddMode] = useState<'manual' | 'catalog'>('manual');
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogResults, setCatalogResults] = useState<CatalogBook[]>([]);
   const [catalogSuggestions, setCatalogSuggestions] = useState<CatalogBook[]>([]);
@@ -172,6 +182,7 @@ export default function LibraryScreen({ navigation }: Props) {
       setAuthor(author);
       setTotalPages('');
       setCoverUri(item.coverUri);
+      setAddMode('manual');
       Alert.alert('Complete o cadastro', 'O catálogo não informou o total de páginas. Preencha esse dado no formulário para adicionar o livro.');
       return;
     }
@@ -191,6 +202,7 @@ export default function LibraryScreen({ navigation }: Props) {
         item.title, author, item.pageCount, item.coverUri
       );
       await loadBooks();
+      setAddModalVisible(false);
       Alert.alert('Livro adicionado', 'O livro foi incluído em Quero ler.');
     } catch (error) {
       console.error(error);
@@ -264,6 +276,7 @@ export default function LibraryScreen({ navigation }: Props) {
       setAuthor('');
       setTotalPages('');
       setCoverUri(null);
+      setAddModalVisible(false);
 
       // Atualiza a lista de livros
       await loadBooks();
@@ -275,76 +288,6 @@ export default function LibraryScreen({ navigation }: Props) {
       Alert.alert(
         'Erro',
         'Não foi possível adicionar o livro.'
-      );
-    }
-  };
-
-  // Atualiza o progresso de leitura de um livro
-  const updateProgress = async (item: Book) => {
-    Keyboard.dismiss();
-
-    if (item.totalPages <= 0) {
-      Alert.alert('Total de páginas ausente', 'Abra os detalhes do livro e informe o total de páginas antes de atualizar o progresso.');
-      return;
-    }
-
-    const pageText =
-      currentPages[item.id] ?? String(item.currentPage ?? 0);
-
-    if (pageText.trim() === '') {
-      Alert.alert(
-        'Atenção',
-        'Informe a página atual do livro.'
-      );
-      return;
-    }
-
-    const page = Number(pageText);
-
-    if (
-      !Number.isInteger(page) ||
-      page < 0 ||
-      page > item.totalPages
-    ) {
-      Alert.alert(
-        'Atenção',
-        `Informe uma página entre 0 e ${item.totalPages}.`
-      );
-      return;
-    }
-
-    // Define o status de acordo com o progresso
-    let status = 'Quero ler';
-
-    if (page === item.totalPages) {
-      status = 'Concluído';
-    } else if (page > 0) {
-      status = 'Lendo';
-    }
-
-    try {
-      // Salva a página atual e o status no banco de dados
-      const startedAt = page > 0 ? new Date().toISOString() : null;
-      const completedAt = page === item.totalPages ? new Date().toISOString() : null;
-      await db.runAsync(
-        `UPDATE books SET currentPage = ?, status = ?,
-         startedAt = CASE WHEN ? IS NOT NULL AND startedAt IS NULL THEN ? ELSE startedAt END,
-         completedAt = ? WHERE id = ?`,
-        page, status, startedAt, startedAt, completedAt, item.id
-      );
-
-      await loadBooks();
-
-      Alert.alert(
-        'Progresso atualizado',
-        `Você está na página ${page} de ${item.totalPages}.\nStatus: ${status}`
-      );
-    } catch (error) {
-      console.error(error);
-
-      Alert.alert(
-        'Erro',
-        'Não foi possível atualizar o progresso.'
       );
     }
   };
@@ -393,270 +336,186 @@ export default function LibraryScreen({ navigation }: Props) {
 
   // Componente que representa cada livro da lista
   const renderBook = (item: Book) => {
-    const currentPage = item.currentPage ?? 0;
-
-    const percentage =
-      item.totalPages > 0
-        ? Math.min(
-            100,
-            Math.round((currentPage / item.totalPages) * 100)
-          )
-        : 0;
-
     return (
-      <TouchableOpacity
-        key={item.id}
-        style={styles.bookCard}
-        activeOpacity={0.9}
-        onPress={() => openBookDetails(item)}
-      >
-        {item.coverUri ? (
-          <Image
-            source={{ uri: item.coverUri }}
-            style={styles.coverImage}
-          />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Text style={styles.placeholderText}>
-              Sem capa
-            </Text>
+      <View style={[styles.bookTile, { width: tileWidth }]}>
+        <TouchableOpacity
+          style={styles.bookOpen}
+          activeOpacity={0.9}
+          onPress={() => openBookDetails(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${item.author}, ${item.status}. Abrir detalhes.`}
+        >
+          {item.coverUri ? (
+            <Image source={{ uri: item.coverUri }} style={styles.coverImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.coverPlaceholder}><Text style={styles.placeholderText}>Sem capa</Text></View>
+          )}
+          <View style={styles.bookInfo}>
+            <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+            <Text style={styles.bookStatus} numberOfLines={1}>{item.status}</Text>
           </View>
-        )}
-
-        <View style={styles.bookInfo}>
-          <Text style={styles.bookTitle}>
-            {item.title}
-          </Text>
-
-          <Text style={styles.bookAuthor}>
-            {item.author}
-          </Text>
-
-          <Text style={styles.bookPages}>
-            {item.totalPages > 0 ? `${item.totalPages} páginas` : 'Total de páginas não informado'}
-          </Text>
-
-          <Text style={styles.bookStatus}>
-            {item.status}
-          </Text>
-
-          {/* Progresso da leitura */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBackground}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${percentage}%` },
-                ]}
-              />
-            </View>
-
-            <Text style={styles.progressText}>
-              {percentage}% concluído
-            </Text>
-          </View>
-
-          {/* Campo para atualizar a página atual */}
-          <Text style={styles.currentPageLabel}>
-            Página atual:
-          </Text>
-
-          <TextInput
-            style={styles.currentPageInput}
-            value={
-              currentPages[item.id] ??
-              String(item.currentPage ?? 0)
-            }
-            onChangeText={(value) =>
-              setCurrentPages((previous) => ({
-                ...previous,
-                [item.id]: value,
-              }))
-            }
-            keyboardType="numeric"
-            placeholder="Página"
-            returnKeyType="done"
-            onSubmitEditing={() => updateProgress(item)}
-          />
-
-          <TouchableOpacity
-            style={styles.updateButton}
-            onPress={() => updateProgress(item)}
-          >
-            <Text style={styles.updateButtonText}>
-              Atualizar progresso
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.detailsButton}
-            onPress={() => openBookDetails(item)}
-          >
-            <Text style={styles.detailsButtonText}>
-              Ver detalhes
-            </Text>
-          </TouchableOpacity>
-
-          {/* Botão para excluir o livro */}
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => deleteBook(item.id)}
-          >
-            <Text style={styles.deleteButtonText}>
-              Excluir
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteTileButton}
+          onPress={() => void deleteBook(item.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Excluir ${item.title}`}
+        >
+          <Text style={styles.deleteTileText}>×</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+      <View style={styles.content}>
+        <View style={styles.topBar}>
+          <Text style={styles.screenTitle}>Minha Biblioteca</Text>
+          <TouchableOpacity
+            style={styles.openAddButton}
+            onPress={() => setAddModalVisible(true)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.openAddButtonText}>+ Adicionar</Text>
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          key={`books-${numColumns}`}
+          data={books}
+          numColumns={numColumns}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => renderBook(item)}
+          columnWrapperStyle={styles.bookRow}
+          contentContainerStyle={styles.gridContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={(
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
+                {statuses.map((status) => (
+                  <TouchableOpacity
+                    key={status}
+                    onPress={() => setSelectedStatus(status)}
+                    style={[styles.filterChip, selectedStatus === status && styles.filterChipActive]}
+                  >
+                    <Text style={[styles.filterText, selectedStatus === status && styles.filterTextActive]}>{status}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.listTitle}>Seus livros</Text>
+            </>
+          )}
+          ListEmptyComponent={<Text style={styles.emptyText}>Sua biblioteca está vazia.</Text>}
+        />
+      </View>
+
+      <Modal
+        visible={addModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddModalVisible(false)}
       >
-        <Text style={styles.screenTitle}>
-          Minha Biblioteca
-        </Text>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
-          {statuses.map((status) => (
-            <TouchableOpacity
-              key={status}
-              onPress={() => setSelectedStatus(status)}
-              style={[styles.filterChip, selectedStatus === status && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterText, selectedStatus === status && styles.filterTextActive]}>{status}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.catalogCard}>
-          <Text style={styles.catalogTitle}>Pesquisar no catálogo</Text>
-          <Text style={styles.catalogDescription}>Encontre livros pelo título ou autor usando o catálogo do Open Library.</Text>
-          <View style={styles.catalogSearchRow}>
-            <TextInput
-              style={[styles.input, styles.catalogInput]}
-              placeholder="Título ou autor"
-              value={catalogQuery}
-              onChangeText={(value) => {
-                setCatalogQuery(value);
-                setCatalogResults([]);
-                setCatalogError('');
-                setCatalogSuggestions([]);
-                setSuggestionsVisible(value.trim().length >= 3);
-              }}
-              onFocus={() => setSuggestionsVisible(catalogQuery.trim().length >= 3)}
-              onSubmitEditing={() => void searchCatalog()}
-              returnKeyType="search"
-              accessibilityLabel="Pesquisar livros no catálogo"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={Keyboard.dismiss}
+            accessibilityLabel="Fechar teclado"
+          />
+          <View style={styles.modalSheet}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={Keyboard.dismiss}
+              accessibilityLabel="Recolher teclado"
             />
-            <TouchableOpacity style={styles.catalogSearchButton} onPress={() => void searchCatalog()} disabled={catalogLoading}>
-              <Text style={styles.addButtonText}>{catalogLoading ? '...' : 'Buscar'}</Text>
-            </TouchableOpacity>
+            <View style={styles.modalHeading}>
+              <Text style={styles.modalTitle}>Adicionar livro</Text>
+              <TouchableOpacity onPress={() => setAddModalVisible(false)} accessibilityRole="button">
+                <Text style={styles.modalClose}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modeTabs}>
+              <TouchableOpacity onPress={() => setAddMode('manual')} style={[styles.modeTab, addMode === 'manual' && styles.modeTabActive]}>
+                <Text style={[styles.modeTabText, addMode === 'manual' && styles.modeTabTextActive]}>Cadastro manual</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setAddMode('catalog')} style={[styles.modeTab, addMode === 'catalog' && styles.modeTabActive]}>
+                <Text style={[styles.modeTabText, addMode === 'catalog' && styles.modeTabTextActive]}>Buscar catálogo</Text>
+              </TouchableOpacity>
+            </View>
+
+            {addMode === 'manual' ? (
+              <ScrollView style={styles.modalBody} contentContainerStyle={styles.modalForm} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                <TextInput style={styles.input} placeholder="Título do livro" placeholderTextColor={COLORS.textSecondary} selectionColor={COLORS.background} value={title} onChangeText={setTitle} returnKeyType="next" />
+                <TextInput style={styles.input} placeholder="Autor" placeholderTextColor={COLORS.textSecondary} selectionColor={COLORS.background} value={author} onChangeText={setAuthor} returnKeyType="next" />
+                <TextInput style={styles.input} placeholder="Quantidade de páginas" placeholderTextColor={COLORS.textSecondary} selectionColor={COLORS.background} value={totalPages} onChangeText={setTotalPages} keyboardType="numeric" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
+                <TouchableOpacity style={styles.selectCoverButton} onPress={() => void selectCover()}>
+                  <Text style={styles.selectCoverButtonText}>Escolher capa</Text>
+                </TouchableOpacity>
+                {coverUri ? <Image source={{ uri: coverUri }} style={styles.coverPreview} /> : null}
+                <TouchableOpacity style={styles.addButton} onPress={() => void addBook()}>
+                  <Text style={styles.addButtonText}>Adicionar à biblioteca</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : (
+              <ScrollView style={styles.modalBody} contentContainerStyle={styles.modalForm} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                <Text style={styles.catalogDescription}>Encontre livros pelo título ou autor no catálogo Open Library.</Text>
+                <View style={styles.catalogSearchRow}>
+                  <TextInput
+                    style={[styles.input, styles.catalogInput]}
+                    placeholder="Título ou autor"
+                    placeholderTextColor={COLORS.textSecondary}
+                    selectionColor={COLORS.background}
+                    value={catalogQuery}
+                    onChangeText={(value) => {
+                      setCatalogQuery(value);
+                      setCatalogResults([]);
+                      setCatalogError('');
+                      setCatalogSuggestions([]);
+                      setSuggestionsVisible(value.trim().length >= 3);
+                    }}
+                    onFocus={() => setSuggestionsVisible(catalogQuery.trim().length >= 3)}
+                    onSubmitEditing={() => void searchCatalog()}
+                    returnKeyType="search"
+                    accessibilityLabel="Pesquisar livros no catálogo"
+                  />
+                  <TouchableOpacity style={styles.catalogSearchButton} onPress={() => void searchCatalog()} disabled={catalogLoading}>
+                    <Text style={styles.addButtonText}>{catalogLoading ? '...' : 'Buscar'}</Text>
+                  </TouchableOpacity>
+                </View>
+                {suggestionsVisible && catalogQuery.trim().length >= 3 ? (
+                  <View style={styles.suggestionsList}>
+                    {suggestionsLoading && catalogSuggestions.length === 0 ? <Text style={styles.catalogMessage}>Buscando sugestões...</Text> : null}
+                    {catalogSuggestions.map((item) => (
+                      <TouchableOpacity key={item.id} onPress={() => chooseCatalogSuggestion(item)} style={styles.suggestionItem}>
+                        <Text style={styles.suggestionTitle} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.suggestionAuthor} numberOfLines={1}>{item.authors.join(', ') || 'Autor não informado'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+                {catalogError ? <Text style={styles.catalogMessage}>{catalogError}</Text> : null}
+                {catalogResults.map((item) => (
+                  <View key={item.id} style={styles.catalogResult}>
+                    {item.coverUri ? <Image source={{ uri: item.coverUri }} style={styles.catalogCover} /> : <View style={[styles.catalogCover, styles.catalogCoverPlaceholder]}><Text style={styles.placeholderText}>Sem capa</Text></View>}
+                    <View style={styles.catalogInfo}>
+                      <Text style={styles.bookTitle}>{item.title}</Text>
+                      <Text style={styles.bookAuthor}>{item.authors.join(', ') || 'Autor não informado'}</Text>
+                      <Text style={styles.bookPages}>{item.pageCount ? `${item.pageCount} páginas` : 'Total de páginas não informado'}</Text>
+                      <TouchableOpacity style={styles.catalogAddButton} onPress={() => void addCatalogBook(item)}>
+                        <Text style={styles.detailsButtonText}>Adicionar à biblioteca</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
-          {suggestionsVisible && catalogQuery.trim().length >= 3 && (
-            <View style={styles.suggestionsList}>
-              {suggestionsLoading && catalogSuggestions.length === 0 ? <Text style={styles.catalogMessage}>Buscando sugestões...</Text> : null}
-              {catalogSuggestions.map((item) => (
-                <TouchableOpacity key={item.id} onPress={() => chooseCatalogSuggestion(item)} style={styles.suggestionItem}>
-                  <Text style={styles.suggestionTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.suggestionAuthor} numberOfLines={1}>{item.authors.join(', ') || 'Autor não informado'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          {catalogError ? <Text style={styles.catalogMessage}>{catalogError}</Text> : null}
-          {catalogResults.map((item) => (
-            <View key={item.id} style={styles.catalogResult}>
-              {item.coverUri ? <Image source={{ uri: item.coverUri }} style={styles.catalogCover} /> : <View style={[styles.catalogCover, styles.catalogCoverPlaceholder]}><Text style={styles.placeholderText}>Sem capa</Text></View>}
-              <View style={styles.catalogInfo}>
-                <Text style={styles.bookTitle}>{item.title}</Text>
-                <Text style={styles.bookAuthor}>{item.authors.join(', ') || 'Autor não informado'}</Text>
-                <Text style={styles.bookPages}>{item.pageCount ? `${item.pageCount} páginas` : 'Total de páginas não informado'}</Text>
-                <TouchableOpacity style={styles.catalogAddButton} onPress={() => void addCatalogBook(item)}>
-                  <Text style={styles.detailsButtonText}>Adicionar à biblioteca</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Formulário de cadastro */}
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Título do livro"
-            value={title}
-            onChangeText={setTitle}
-            returnKeyType="next"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Autor"
-            value={author}
-            onChangeText={setAuthor}
-            returnKeyType="next"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Quantidade de páginas"
-            value={totalPages}
-            onChangeText={setTotalPages}
-            keyboardType="numeric"
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-          />
-
-          {/* Botão para selecionar a capa */}
-          <TouchableOpacity
-            style={styles.selectCoverButton}
-            onPress={selectCover}
-          >
-            <Text style={styles.selectCoverButtonText}>
-              Escolher capa
-            </Text>
-          </TouchableOpacity>
-
-          {/* Prévia da capa selecionada */}
-          {coverUri && (
-            <Image
-              source={{ uri: coverUri }}
-              style={styles.coverPreview}
-            />
-          )}
-
-          {/* Botão para adicionar o livro */}
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={addBook}
-          >
-            <Text style={styles.addButtonText}>
-              Adicionar livro
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Título da lista */}
-        <Text style={styles.listTitle}>
-          Livros cadastrados
-        </Text>
-
-        {/* Lista de livros */}
-        {books.length === 0 ? (
-          <Text style={styles.emptyText}>
-            Sua biblioteca está vazia.
-          </Text>
-        ) : (
-          books.map((item) => renderBook(item))
-        )}
-      </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -665,15 +524,146 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.cream,
+  },
+
+  content: {
+    flex: 1,
     paddingHorizontal: 20,
   },
 
-  scrollView: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+  },
+
+  openAddButton: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 20,
+  },
+
+  openAddButtonText: {
+    color: COLORS.surface,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  gridContent: {
+    paddingBottom: 28,
+  },
+
+  bookRow: {
+    gap: 12,
+    marginBottom: 18,
+  },
+
+  bookTile: {
+    flexGrow: 0,
+    flexShrink: 0,
+    minWidth: 0,
+    position: 'relative',
+  },
+
+  bookOpen: {
     flex: 1,
   },
 
-  scrollContent: {
-    paddingBottom: 30,
+  deleteTileButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: '#173F35CC',
+  },
+
+  deleteTileText: {
+    color: COLORS.surface,
+    fontSize: 21,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: '#00000066',
+  },
+
+  modalSheet: {
+    position: 'relative',
+    flexShrink: 1,
+    maxHeight: '92%',
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: COLORS.cream,
+  },
+
+  modalHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
+  modalTitle: {
+    color: COLORS.text,
+    fontSize: 21,
+    fontWeight: '700',
+  },
+
+  modalClose: {
+    color: COLORS.background,
+    fontWeight: '600',
+    padding: 8,
+  },
+
+  modeTabs: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceAlt,
+    padding: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+
+  modeTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 9,
+  },
+
+  modeTabActive: {
+    backgroundColor: COLORS.background,
+  },
+
+  modeTabText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  modeTabTextActive: {
+    color: COLORS.surface,
+  },
+
+  modalForm: {
+    paddingTop: 8,
+    paddingBottom: 18,
+  },
+
+  modalBody: {
+    flexShrink: 1,
   },
 
   screenTitle: {
@@ -715,6 +705,7 @@ const styles = StyleSheet.create({
 
   input: {
     backgroundColor: COLORS.surfaceAlt,
+    color: COLORS.text,
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
@@ -764,29 +755,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  bookCard: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    alignItems: 'flex-start',
-  },
-
   coverImage: {
-    width: 100,
-    height: 150,
-    resizeMode: 'cover',
-    borderRadius: 8,
+    width: '100%',
+    aspectRatio: 0.68,
+    borderRadius: 9,
+    backgroundColor: COLORS.surfaceAlt,
+    marginBottom: 7,
   },
 
   coverPlaceholder: {
-    width: 100,
-    height: 150,
+    width: '100%',
+    aspectRatio: 0.68,
     backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 8,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 7,
   },
 
   placeholderText: {
@@ -795,19 +779,18 @@ const styles = StyleSheet.create({
   },
 
   bookInfo: {
-    flex: 1,
-    marginLeft: 12,
+    paddingHorizontal: 2,
   },
 
   bookTitle: {
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: 'bold',
     color: COLORS.text,
     marginBottom: 4,
   },
 
   bookAuthor: {
-    fontSize: 14,
+    fontSize: 11,
     color: COLORS.textSecondary,
     marginBottom: 6,
   },
@@ -819,9 +802,11 @@ const styles = StyleSheet.create({
   },
 
   bookStatus: {
-    fontSize: 13,
+    fontSize: 10,
     color: COLORS.background,
     fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
 
   progressContainer: {
