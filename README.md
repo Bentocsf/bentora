@@ -48,6 +48,8 @@ A aba Perfil mantém um nome local, resume páginas e tempo de leitura registrad
 O Perfil permite criar conta e entrar com e-mail e senha pelo Supabase Auth. Para configurar o projeto, copie `.env.example` para `.env` e informe `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Use somente uma chave publicável; nunca coloque a chave `service_role` no app. Após editar `.env`, reinicie o Expo para carregar a configuração.
 
 A autenticação confirma a identidade, mas ainda não sincroniza livros e reflexões: esses dados continuam salvos localmente neste aparelho. A confirmação de e-mail depende das opções configuradas no painel do Supabase.
+
+O Diário também permite ditar uma reflexão. O app grava em M4A no iOS/Android e WebM na web, envia o áudio à Edge Function autenticada `transcribe-reflection`, e insere o texto devolvido para revisão. A função encaminha a gravação à API de transcrição da OpenAI e não salva o arquivo. Para ativá-la, cadastre `OPENAI_API_KEY` em **Supabase Dashboard → Edge Functions → Secrets** e publique a função com `npx supabase login`, `npx supabase link --project-ref SEU_PROJECT_REF` e `npx supabase functions deploy transcribe-reflection`. A chave da OpenAI nunca deve entrar no `.env` do app.
 Perguntas inteligentes
 A IA deverá oferecer diferentes formas de explorar uma leitura:
 - Sobre capítulos lidos: perguntas para verificar compreensão, identificar argumentos e explorar relações e interpretações.
@@ -66,7 +68,7 @@ A primeira versão deverá priorizar uma experiência útil e possível de imple
 4. Associação de reflexões a livros e capítulos.
 5. Avaliação e implementação do leitor PDF/EPUB, conforme viabilidade técnica.
 6. Perguntas inteligentes baseadas nos insights, evoluindo para o conteúdo dos livros quando disponível.
-Áudio, login com sincronização, estatísticas avançadas e revisões automáticas poderão ficar para etapas posteriores. Se o leitor integrado atrasar a entrega, o acompanhamento manual deverá continuar funcionando.
+Sincronização entre dispositivos, estatísticas avançadas e revisões automáticas poderão ficar para etapas posteriores. Se o leitor integrado atrasar a entrega, o acompanhamento manual deverá continuar funcionando.
 Tecnologias
 Tecnologias e integrações previstas para o projeto:
 - React Native — desenvolvimento mobile.
