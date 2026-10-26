@@ -1,11 +1,13 @@
-import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import type { User } from '@supabase/supabase-js';
 
 import COLORS from '../theme/colors';
+import { supabase } from '../lib/supabase';
 
 type Activity = {
   id: number;
@@ -28,6 +30,19 @@ export default function ProfileScreen() {
   const [stats, setStats] = useState(emptyStats);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [saved, setSaved] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => setAuthUser(data.session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const loadProfile = useCallback(async () => {
     const [profile, totals, feed] = await Promise.all([
@@ -71,6 +86,49 @@ export default function ProfileScreen() {
     setTimeout(() => setSaved(false), 1800);
   };
 
+  const submitAuth = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      Alert.alert('Dados incompletos', 'Informe seu e-mail e sua senha.');
+      return;
+    }
+    if (authMode === 'signup' && password.length < 6) {
+      Alert.alert('Senha curta', 'Use uma senha com pelo menos 6 caracteres.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (authMode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: { data: { display_name: draftName.trim() || name } },
+        });
+        if (error) throw error;
+        setPassword('');
+        if (!data.session) {
+          Alert.alert('Confirme seu e-mail', 'Enviamos uma mensagem de confirmação. Abra o link para concluir o cadastro e depois entre no aplicativo.');
+        } else {
+          Alert.alert('Conta criada', 'Seu cadastro foi concluído.');
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        if (error) throw error;
+        setPassword('');
+      }
+    } catch (error) {
+      Alert.alert('Não foi possível entrar', error instanceof Error ? error.message : 'Confira os dados e tente novamente.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) Alert.alert('Erro ao sair', error.message);
+  };
+
   const achievements = [
     { icon: 'book-outline' as const, title: 'Primeiras páginas', description: 'Leia 100 páginas', unlocked: stats.pages >= 100 },
     { icon: 'time-outline' as const, title: 'Uma hora de foco', description: 'Registre 60 minutos', unlocked: stats.minutes >= 60 },
@@ -84,6 +142,35 @@ export default function ProfileScreen() {
         <Text style={styles.eyebrow}>SEU ESPAÇO PESSOAL</Text>
         <Text style={styles.title}>Perfil</Text>
 
+        <View style={styles.authCard}>
+          <Text style={styles.authTitle}>{authUser ? 'Conta Bentora' : 'Entre ou crie sua conta'}</Text>
+          {authUser ? (
+            <>
+              <Text style={styles.muted}>Conectado como {authUser.email ?? 'usuário Bentora'}</Text>
+              <TouchableOpacity style={styles.saveButton} onPress={() => void signOut()} accessibilityRole="button">
+                <Text style={styles.saveButtonText}>Sair da conta</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.authModes}>
+                <TouchableOpacity style={[styles.authMode, authMode === 'login' && styles.authModeSelected]} onPress={() => setAuthMode('login')}>
+                  <Text style={[styles.authModeText, authMode === 'login' && styles.authModeTextSelected]}>Entrar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.authMode, authMode === 'signup' && styles.authModeSelected]} onPress={() => setAuthMode('signup')}>
+                  <Text style={[styles.authModeText, authMode === 'signup' && styles.authModeTextSelected]}>Criar conta</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput value={email} onChangeText={setEmail} placeholder="E-mail" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" style={styles.input} />
+              <TextInput value={password} onChangeText={setPassword} placeholder="Senha (mínimo 6 caracteres)" secureTextEntry textContentType={authMode === 'signup' ? 'newPassword' : 'password'} style={styles.input} />
+              <TouchableOpacity style={[styles.saveButton, authLoading && styles.disabledButton]} onPress={() => void submitAuth()} disabled={authLoading} accessibilityRole="button">
+                <Text style={styles.saveButtonText}>{authLoading ? 'Aguarde…' : authMode === 'signup' ? 'Criar conta' : 'Entrar'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.muted}>Usamos o Supabase Auth para autenticar. Suas leituras ainda ficam salvas apenas neste aparelho.</Text>
+            </>
+          )}
+        </View>
+
         <View style={styles.profileCard}>
           <View style={styles.avatar}><Ionicons name="person" size={28} color={COLORS.cream} /></View>
           <Text style={styles.greeting}>Olá, {name}</Text>
@@ -96,7 +183,7 @@ export default function ProfileScreen() {
 
         <View style={styles.notice}>
           <Ionicons name="information-circle-outline" size={20} color={COLORS.background} />
-          <Text style={styles.noticeText}>Login e sincronização entre dispositivos ainda não estão ativos. Seu perfil atual é local e não exige cadastro de conta.</Text>
+          <Text style={styles.noticeText}>Sua conta autentica seu acesso. Leituras, reflexões e progresso ainda ficam apenas neste aparelho; a sincronização entre dispositivos não está ativa.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Seu percurso</Text>
@@ -169,6 +256,14 @@ const styles = StyleSheet.create({
   eyebrow: { color: COLORS.backgroundLight, fontSize: 11, fontWeight: '700', letterSpacing: 1.4 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: '700', marginTop: 5, marginBottom: 18 },
   profileCard: { alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: COLORS.border },
+  authCard: { backgroundColor: COLORS.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 },
+  authTitle: { color: COLORS.text, fontSize: 17, fontWeight: '700', marginBottom: 10 },
+  authModes: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  authMode: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 9, backgroundColor: COLORS.surfaceAlt },
+  authModeSelected: { backgroundColor: COLORS.background },
+  authModeText: { color: COLORS.text, fontWeight: '600' },
+  authModeTextSelected: { color: COLORS.cream },
+  disabledButton: { opacity: 0.6 },
   avatar: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background },
   greeting: { color: COLORS.text, fontSize: 20, fontWeight: '700', marginTop: 10 },
   muted: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },

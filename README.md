@@ -45,7 +45,9 @@ Funcionalidades previstas:
 Perfil e atividade de leitura
 A aba Perfil mantém um nome local, resume páginas e tempo de leitura registrados, mostra conquistas básicas e reúne um feed privado de leituras e reflexões. Ao salvar o progresso de um livro, o leitor pode registrar páginas avançadas e minutos dedicados à sessão.
 
-O perfil não representa uma conta: login e sincronização entre dispositivos dependem de um serviço de autenticação e backend, que ainda não fazem parte do aplicativo. Os dados atuais permanecem armazenados localmente.
+O Perfil permite criar conta e entrar com e-mail e senha pelo Supabase Auth. Para configurar o projeto, copie `.env.example` para `.env` e informe `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Use somente uma chave publicável; nunca coloque a chave `service_role` no app. Após editar `.env`, reinicie o Expo para carregar a configuração.
+
+A autenticação confirma a identidade, mas ainda não sincroniza livros e reflexões: esses dados continuam salvos localmente neste aparelho. A confirmação de e-mail depende das opções configuradas no painel do Supabase.
 Perguntas inteligentes
 A IA deverá oferecer diferentes formas de explorar uma leitura:
 - Sobre capítulos lidos: perguntas para verificar compreensão, identificar argumentos e explorar relações e interpretações.
